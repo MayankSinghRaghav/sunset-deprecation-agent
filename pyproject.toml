@@ -69,3 +69,10 @@ src = ["src", "datagen", "eval"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules are mostly authored data literals (feature descriptions, ticket
+# and deal-note templates, contract clause prose). Wrapping them hurts more than
+# it helps, so line-length is not enforced there.
+"datagen/world.py" = ["E501"]
+"datagen/generate.py" = ["E501"]
