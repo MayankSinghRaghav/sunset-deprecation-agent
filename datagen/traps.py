@@ -136,14 +136,23 @@ def profile_none_kill(fid, accounts, rng):
 
 
 def profile_contract_bound(fid, accounts, rng):
-    # low usage, concentrated in a couple of enterprise accounts. Usage says
-    # "kill"; the contract (attached elsewhere) is the real story.
+    # Genuinely LOW, slowly declining usage in a couple of enterprise accounts.
+    # A naive usage read says "kill" — and that is the whole danger of the trap:
+    # the feature is quiet in the product but load-bearing in a signed contract.
+    # The obligation (attached in contracts) is the only thing standing between
+    # the naive baseline and a contract breach.
     days = _all_days()
     rows = []
-    users = _pick(rng, _band(accounts, "whale") + _band(accounts, "mid_market"), 3)
+    users = _pick(rng, _band(accounts, "whale") + _band(accounts, "mid_market"), 2)
+    n = len(days)
     for a in users:
-        inten = _steady(days, 6 * rng.uniform(0.6, 1.2), rng=rng)
-        rows += _emit(fid, a, days, inten, "human", rng)
+        # steep decline to genuinely dormant: recent usage sits well below the
+        # bottom quartile, so a usage-only baseline reads it as a safe KILL —
+        # and, because keyword grep cannot read the capability-language clause,
+        # nothing stops the breach. That KILL is the trap.
+        decline = np.exp(-np.arange(n) / 170.0)
+        inten = _steady(days, 0.8 * rng.uniform(0.7, 1.1), rng=rng) * decline
+        rows += _emit(fid, a, days, np.clip(inten, 0, None), "human", rng)
     return rows
 
 
@@ -181,9 +190,11 @@ def profile_broken_not_unwanted(fid, accounts, rng):
     for a in users:
         base = {"whale": 45, "mid_market": 24, "smb": 10}[a.band] * rng.uniform(0.8, 1.2)
         inten = _steady(days, base, rng=rng)
-        # after the break: collapse to ~3% (a few stubborn retries)
+        # after the break: collapse to ~1.5% (a few stubborn retries). Recent
+        # usage reads as near-dead, so a usage-only baseline KILLs it — missing
+        # that the ticket stream shows people still trying and failing (FIX).
         collapse = np.ones(len(days))
-        collapse[break_i:] = 0.03
+        collapse[break_i:] = 0.015
         rows += _emit(fid, a, days, inten * collapse, "human", rng)
     return rows
 
@@ -196,9 +207,11 @@ def profile_seasonal(fid, accounts, rng):
     for a in users:
         base = {"whale": 50, "mid_market": 28, "smb": 12}[a.band] * rng.uniform(0.8, 1.2)
         season = np.array([base if d.month in months else 0.0 for d in days])
-        # a faint off-season trickle so it isn't a perfect on/off square wave
-        trickle = np.array([0.0 if d.month in months else 0.4 for d in days])
-        inten = (season + trickle) * (1.0 + rng.normal(0, 0.12, len(days)))
+        # genuinely dormant ten months a year: zero off-season. A recent-usage
+        # read taken out of season reads it as dead — that is the trap. Two full
+        # annual cycles (24-month window) make the periodicity honestly
+        # detectable rather than a single bump.
+        inten = season * (1.0 + rng.normal(0, 0.12, len(days)))
         rows += _emit(fid, a, days, np.clip(inten, 0, None), "human", rng)
     return rows
 
