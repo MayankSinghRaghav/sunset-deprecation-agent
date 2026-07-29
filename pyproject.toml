@@ -56,6 +56,11 @@ markers = [
     "requires_db: test needs a running Postgres cluster (make db-up)",
     "gate: phase gate assertion — these are the numbers the README quotes",
 ]
+filterwarnings = [
+    # pgvector's `vector` type is unknown to SQLAlchemy reflection; we do not map
+    # it in the ORM (retrieval.py reads it directly), so the warning is expected.
+    "ignore:Did not recognize type 'vector':Warning",
+]
 
 [tool.ruff]
 line-length = 100
