@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local Postgres cluster + logs (bootstrapped by scripts/pg_bootstrap.sh)
+.pgdata/
+*.pglog
+
+# Cached LLM prose from datagen (content-hash keyed; regenerate with a key)
+.cache/
+
+# Scratch
+scratch/
