@@ -1,0 +1,31 @@
+<svg width="1000" height="240" viewBox="0 0 1000 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sunset — assembles the case for deprecating a feature">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6F7F9"/>
+      <stop offset="0.55" stop-color="#F4EFE9"/>
+      <stop offset="1" stop-color="#F6E3CE"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#EBA24E"/>
+      <stop offset="0.7" stop-color="#D98A3B"/>
+      <stop offset="1" stop-color="#B8701F"/>
+    </radialGradient>
+    <clipPath id="horizon"><rect x="0" y="0" width="1000" height="150"/></clipPath>
+  </defs>
+
+  <rect x="1" y="1" width="998" height="238" rx="18" fill="url(#sky)" stroke="#E4E8ED"/>
+
+  <!-- setting sun, clipped at the horizon line -->
+  <g clip-path="url(#horizon)">
+    <circle cx="812" cy="150" r="58" fill="url(#sun)"/>
+    <circle cx="812" cy="150" r="86" fill="#D98A3B" opacity="0.10"/>
+    <circle cx="812" cy="150" r="118" fill="#D98A3B" opacity="0.05"/>
+  </g>
+  <line x1="60" y1="150" x2="940" y2="150" stroke="#C9AE93" stroke-width="1.25"/>
+
+  <!-- wordmark -->
+  <text x="60" y="110" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="500" fill="#191C22" letter-spacing="-1">Sunset</text>
+
+  <!-- tagline -->
+  <text x="62" y="190" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="15" fill="#647084" letter-spacing="0.5">Assembles the case for deprecating a feature. A human signs the death warrant.</text>
+</svg>
