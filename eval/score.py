@@ -166,18 +166,51 @@ def format_scorecard(sc: Scorecard) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
-    # score the frozen baseline (needs no LLM, no key)
-    from eval.baseline import baseline_predictions
+def agent_predictions(run_id: str | None = None) -> dict[str, Prediction]:
+    """Read verdicts from a persisted agent run (latest if run_id is None)."""
+    import psycopg
 
-    preds = baseline_predictions()
-    full = score(preds, "Deterministic baseline (all 40)")
-    print(format_scorecard(full))
-    print()
+    from sunset.config import settings
+
+    dsn = settings.database_url.replace("postgresql+psycopg://", "postgresql://")
+    with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+        if run_id is None:
+            cur.execute("SELECT id, used_offline_stub FROM audit_runs "
+                        "WHERE status='completed' ORDER BY started_at DESC LIMIT 1")
+            row = cur.fetchone()
+            if not row:
+                return {}
+            run_id, used_offline = row
+        else:
+            cur.execute("SELECT used_offline_stub FROM audit_runs WHERE id=%s", (run_id,))
+            used_offline = cur.fetchone()[0]
+        cur.execute(
+            "SELECT feature_id, verdict, secondary_action FROM feature_audits WHERE run_id=%s",
+            (run_id,))
+        return {
+            fid: Prediction(feature_id=fid, verdict=v, secondary_action=sec,
+                            used_offline=used_offline)
+            for fid, v, sec in cur.fetchall()
+        }
+
+
+def main() -> None:
+    from eval.baseline import baseline_predictions
     from eval.holdout import DEV, HOLDOUT
-    print(format_scorecard(score(preds, "  baseline — dev (28)", DEV)))
+
+    base = baseline_predictions()
+    print(format_scorecard(score(base, "Deterministic baseline (all 40)")))
     print()
-    print(format_scorecard(score(preds, "  baseline — holdout (12)", HOLDOUT)))
+
+    agent = agent_predictions()
+    if agent:
+        print(format_scorecard(score(agent, "Agent pipeline (all 40)")))
+        print()
+        print(format_scorecard(score(agent, "  agent — dev (28)", DEV)))
+        print()
+        print(format_scorecard(score(agent, "  agent — holdout (12)", HOLDOUT)))
+    else:
+        print("No agent run found. Run `make run` first.")
 
 
 if __name__ == "__main__":

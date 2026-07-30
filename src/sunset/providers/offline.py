@@ -94,19 +94,21 @@ def _usage(s: dict) -> dict:
             "revenue_concentrated": conc,
             "whale_usage": s.get("whale_usage", False),
             "active_human_accounts": s.get("active_human_accounts", 0),
+            "inbound_from_keep": s.get("inbound_from_keep", []),
         },
     }
 
 
 def _contract(s: dict) -> dict:
     clauses = s.get("top_clauses", [])
+    thr = s.get("clause_threshold", 0.5)
     best = max((c.get("score", 0.0) for c in clauses), default=0.0)
-    matched = [c for c in clauses if c.get("score", 0.0) >= 0.5]
+    matched = [c for c in clauses if c.get("score", 0.0) >= thr]
     has_replacement = s.get("has_live_replacement", False)
-    if best >= 0.5 and not has_replacement:
+    if best >= thr and not has_replacement:
         status = "obligated"
         finding = "A contractual obligation names this capability and no other feature provides it."
-    elif best >= 0.5 and has_replacement:
+    elif best >= thr and has_replacement:
         # The obligation may be satisfiable by the named replacement, but that
         # is a migration to confirm, not a free kill. Caps at MIGRATE downstream.
         status = "possibly_obligated"
