@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          # trust auth for an ephemeral CI service container — no password literal
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: sunset
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # local CI role credentials (created by db/roles.sql); trust auth ignores them
+      SUNSET_DATABASE_URL: postgresql+psycopg://sunset_app@localhost:5432/sunset
+      SUNSET_EVAL_DATABASE_URL: postgresql+psycopg://sunset_eval@localhost:5432/sunset
+      SUNSET_LLM_MODE: offline
+      SUNSET_VECTOR_BACKEND: pgvector
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync deps
+        run: uv sync
+
+      - name: Provision schema, roles, and extension (as superuser)
+        run: |
+          SUP="postgresql://postgres@localhost:5432/sunset"
+          psql "$SUP" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          psql "$SUP" -v ON_ERROR_STOP=1 -f db/roles.sql
+          psql "$SUP" -v ON_ERROR_STOP=1 -f db/schema.sql
+          psql "$SUP" -v ON_ERROR_STOP=1 -f db/indexes.sql
+
+      - name: Seed committed fixtures (keyless)
+        run: uv run python -m datagen.load_fixtures
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Baseline is frozen
+        run: uv run python -m eval.baseline

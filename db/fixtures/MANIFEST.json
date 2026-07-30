@@ -1,0 +1,25 @@
+{
+  "seed": 1337,
+  "dataset_version": "v1",
+  "truth_sha256": "0d951835cf27429e00793c3eb90a744a93d13e4c1dcc544c74e564f52992bd77",
+  "row_counts": {
+    "accounts": 60,
+    "features": 40,
+    "dependencies": 25,
+    "contracts": 12,
+    "clauses": 44,
+    "deals": 65,
+    "tickets": 800,
+    "usage": 117139
+  },
+  "files": {
+    "010_features.sql": "12af1c95a6a3e15f22635ceb585d37490325a119ce0cb5aef2a4bab365fe43d0",
+    "020_accounts.sql": "18a74325289faec10507172306ac4a706d72e885a7a19a15fd286f66e14f0d7f",
+    "030_dependencies.sql": "e40e66642c25a0d1174ffc044481834627af25df2fc76af6e9ee86662f26cd28",
+    "040_contracts.sql": "4e6ab835dccb3ac005c74ec6ab684b4f2f8223ba97187e540a93653b3b9934c7",
+    "050_contract_clauses.sql": "19243bdca2522b5bf345efb19c24be145526ad57cdda06c3442d655a822f0f40",
+    "060_deal_notes.sql": "5b53346faac9256a5c17baeb9faf42ef490aad2012de7c573df1bdf7c0876a47",
+    "070_support_tickets.sql": "de4645e0598b60bad0581e6d4f5875399687761e01ced841d2e959bcf7b2c145",
+    "080_usage_daily.csv.zst": "0dee5c54736653af166a354f61aa323e02b68d07f3349aad2c01ff24090e7d2b"
+  }
+}

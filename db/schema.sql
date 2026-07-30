@@ -24,7 +24,10 @@ CREATE TABLE IF NOT EXISTS features (
     annual_maintenance_usd  integer NOT NULL,
     -- Drives the migration-plan rule: the composer proposes a concrete plan
     -- only when a replacement exists, and states the requirement otherwise.
-    replacement_feature_id  text REFERENCES features (id)
+    -- DEFERRABLE so fixture loading (which inserts features in id order) can
+    -- reference a replacement that is inserted later in the same transaction.
+    replacement_feature_id  text
+        REFERENCES features (id) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS feature_dependencies (
@@ -244,6 +247,8 @@ END $$;
 
 -- Ownership: the bootstrap runs as `postgres`, so tables are superuser-owned
 -- and ALTER DEFAULT PRIVILEGES (which is per-creating-role) does not apply.
--- Grant explicitly.
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sunset_app, sunset_eval;
+-- Grant explicitly. TRUNCATE is included so `make seed` can reset the evidence
+-- tables as the app role (public schema only — never touches schema truth).
+GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public
+    TO sunset_app, sunset_eval;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sunset_app, sunset_eval;
