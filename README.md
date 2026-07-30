@@ -174,7 +174,7 @@ flowchart LR
     PROV --> OFF & GEM & REP
     API --> DB
     GRAPH --> DB
-    PROV -. "pgvector / hashing retrieval" .-> DB
+    PROV -. retrieval .-> DB
 ```
 
 | Tier | Framework | Why |
