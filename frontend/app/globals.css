@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e4e8ed;
+  --text:#191c22; --muted:#647084; --faint:#98a0ad;
+  --teal:#2c8579; --amber:#b8701f; --amber-soft:#d98a3b;
+  --glow:217 138 59;
+  --shadow:0 1px 2px rgba(20,25,40,.04), 0 8px 24px -12px rgba(20,25,40,.10);
+}
+.dark {
+  --bg:#16181d; --surface:#1e2128; --surface-2:#23262e; --border:#2a2f37;
+  --text:#e4e7ec; --muted:#8a919e; --faint:#5c636e;
+  --teal:#4e9c93; --amber:#d98a3b; --amber-soft:#e6a65e;
+  --glow:217 138 59;
+  --shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 12px 30px -18px rgba(0,0,0,.6);
+}
+@theme inline {
+  --color-bg:var(--bg); --color-surface:var(--surface); --color-surface-2:var(--surface-2);
+  --color-border:var(--border); --color-text:var(--text); --color-muted:var(--muted);
+  --color-faint:var(--faint); --color-teal:var(--teal); --color-amber:var(--amber);
+  --color-amber-soft:var(--amber-soft);
+  --font-display:var(--font-newsreader),Georgia,serif;
+  --font-body:var(--font-inter),system-ui,sans-serif;
+  --font-mono:var(--font-plex),ui-monospace,Menlo,monospace;
+}
+* { border-color:var(--border); }
+html { scroll-behavior:smooth; }
+body {
+  background:var(--bg); color:var(--text); font-family:var(--font-body);
+  font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  transition:background-color .5s ease, color .3s ease;
+}
+h1,h2,h3,h4 { font-family:var(--font-display); font-weight:420; line-height:1.14; letter-spacing:-.011em; text-wrap:balance; }
+.font-display { font-family:var(--font-display); }
+.font-mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.eyebrow { font-family:var(--font-mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+::selection { background:rgb(var(--glow) / .22); }
+:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+.sun-glow {
+  position:fixed; inset:0; pointer-events:none; z-index:0; will-change:opacity;
+  background:radial-gradient(58% 66% at 76% 60%, rgb(var(--glow) / .20), rgb(var(--glow) / .06) 42%, transparent 68%);
+}
+@media (prefers-reduced-motion:reduce){ body{transition:none} html{scroll-behavior:auto} }
