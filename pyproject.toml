@@ -76,3 +76,5 @@ ignore = ["B008"]
 # it helps, so line-length is not enforced there.
 "datagen/world.py" = ["E501"]
 "datagen/generate.py" = ["E501"]
+# rule tables and user-facing "finding" prose; wrapping hurts readability
+"src/sunset/providers/offline.py" = ["E501"]
