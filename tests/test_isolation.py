@@ -55,12 +55,22 @@ def test_app_role_cannot_create_in_truth_schema(app_engine):
 
 FORBIDDEN_TOP_LEVEL = {"datagen", "eval"}
 
+# The agent's DECISION path must never import the generator or the scorer. The API
+# presentation layer (src/sunset/api) is exempt for exactly one reason: the
+# /eval/scorecard endpoint is the eval surface itself and aggregates baseline-vs-
+# agent numbers. The hard guarantee is unaffected — the agent connects as
+# sunset_app, which is REVOKE'd from schema truth at the database level.
+EXEMPT_DIRS = {SUNSET_PKG / "api"}
+
 
 def _iter_py_files(root: pathlib.Path):
-    yield from root.rglob("*.py")
+    for p in root.rglob("*.py"):
+        if any(exempt in p.parents for exempt in EXEMPT_DIRS):
+            continue
+        yield p
 
 
-def test_sunset_never_imports_datagen_or_eval():
+def test_sunset_agent_core_never_imports_datagen_or_eval():
     offenders: list[str] = []
     for path in _iter_py_files(SUNSET_PKG):
         tree = ast.parse(path.read_text(), filename=str(path))
