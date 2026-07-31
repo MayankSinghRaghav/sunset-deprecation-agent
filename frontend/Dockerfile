@@ -17,7 +17,10 @@ RUN npm run build
 
 FROM node:22-slim AS run
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+# HOSTNAME must be 0.0.0.0 so the standalone server binds all interfaces.
+# Container runtimes (Render included) otherwise set HOSTNAME to the container's
+# own name, which Next's server.js would bind to — leaving it unreachable.
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 # Standalone server + static assets + public dir.
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
