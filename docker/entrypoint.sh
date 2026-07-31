@@ -39,8 +39,22 @@ else
 fi
 export SUNSET_VECTOR_BACKEND="$VB"
 
-echo "==> roles + schema + indexes (vector_backend=$VB)"
-psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -q -f db/roles.sql
+# roles.sql sets up ground-truth isolation (separate roles + a `truth` schema
+# owned by the eval role). Assigning a schema to another role needs a superuser,
+# which local/CI has but a managed Postgres (Render, Neon, RDS) does not. It is
+# an eval-harness feature, not something the running app needs — the API connects
+# as the primary DATABASE_URL role and reads only app tables — so apply it
+# best-effort: full isolation on a superuser DB, gracefully skipped otherwise.
+echo "==> roles / ground-truth isolation (best-effort)"
+psql "$PSQL_DSN" -q -f db/roles.sql \
+  || echo "   roles.sql only partially applied (non-superuser managed DB) — the app runs as the primary role; DB-level isolation is a local/CI feature."
+
+# LangGraph's checkpointer writes to the `checkpoints` schema. On a managed DB
+# roles.sql couldn't create it (it was owned by sunset_app there), so ensure it
+# exists owned by the primary role the app actually connects as.
+psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -q -c "CREATE SCHEMA IF NOT EXISTS checkpoints;"
+
+echo "==> schema + indexes (vector_backend=$VB)"
 psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -v vector_backend="$VB" -q -f db/schema.sql
 psql "$PSQL_DSN" -v ON_ERROR_STOP=1 -v vector_backend="$VB" -q -f db/indexes.sql
 
@@ -54,8 +68,15 @@ fi
 
 COMPLETED="$(psql "$PSQL_DSN" -tAc "SELECT count(*) FROM audit_runs WHERE status='completed';" 2>/dev/null || echo 0)"
 if [ "${COMPLETED:-0}" -lt 1 ]; then
-  echo "==> running the pipeline once (mode=${SUNSET_LLM_MODE:-offline})"
-  python -m sunset.runner --all
+  # Run the pipeline in the BACKGROUND so the API binds its port immediately and
+  # the platform health check passes. On a small/slow instance the pipeline can
+  # take a few minutes; blocking on it here would trip the deploy's health-check
+  # window. The catalogue is briefly empty on first boot, then fills in. It is
+  # idempotent across restarts (skipped once a completed run exists), and the API
+  # falls back to nothing gracefully until data lands.
+  echo "==> starting the pipeline in the background (mode=${SUNSET_LLM_MODE:-offline})"
+  ( python -m sunset.runner --all && echo "==> pipeline complete" \
+      || echo "==> pipeline failed — check logs" ) &
 else
   echo "==> a completed audit run already exists — skipping pipeline"
 fi
