@@ -19,30 +19,21 @@ export function SunsetGlow() {
     let raf = 0;
     const update = () => {
       raf = 0;
+      // Overall scroll progress drives the warmth on every screen: crisp cold
+      // daylight at the top, full sunset by the bottom.
+      const max = root.scrollHeight - window.innerHeight;
+      let p = max > 4 ? window.scrollY / max : 0;
+      p = Math.min(1, Math.max(0, p));
+      let warmth = p * p * (3 - 2 * p); // smoothstep
+
+      // Extra swell as the memo's recommendation reaches the centre of the view.
       const rec = document.getElementById("recommendation");
-      let warmth = 0;
-
       if (rec) {
-        // Feature Memo page specific scroll transitions
         const r = rec.getBoundingClientRect();
-        const vh = window.innerHeight;
         const center = r.top + r.height / 2;
-        const distance = Math.abs(center - vh * 0.5);
-        const maxDistance = vh * 0.85; // Distance range where warmth is active
-
-        if (distance < maxDistance) {
-          const norm = distance / maxDistance; // 0 to 1
-          // Cosine shape to make transition organic, peaking when recommendation is centered
-          const shape = Math.cos(norm * Math.PI / 2);
-          warmth = shape * shape; // Sharp fall-off
-        }
-      } else {
-        // Other pages: Gentle ambient scroll glow, capped at 0.12 to keep interface clean
-        const max = root.scrollHeight - window.innerHeight;
-        const p = max > 4 ? window.scrollY / max : 0;
-        warmth = Math.min(0.12, Math.max(0, p * 0.12));
+        const near = Math.max(0, 1 - Math.abs(center - window.innerHeight * 0.5) / window.innerHeight);
+        warmth = Math.min(1, warmth + near * 0.35);
       }
-
       root.style.setProperty("--warm", warmth.toFixed(3));
     };
     const onScroll = () => {
