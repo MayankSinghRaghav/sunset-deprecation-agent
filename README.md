@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/sunset-logo.svg" alt="Sunset" width="720">
+</p>
+
 # Sunset
 
 **Assembles the case for deprecating a software feature — and refuses to make the decision itself.**
@@ -89,20 +93,30 @@ keep — it's *keep, reclassify as sales collateral, stop investing*.
 
 ## How it works
 
-```
-                         ┌─────────── deterministic policy layer ───────────┐
- evidence (Postgres) ──► metrics.py ──► pre-filter ──► 4 auditors ──► reconciler
-   telemetry               (pure         (KEEP or      (Usage,        (precedence,
-   tickets                  Python)       audit —       Contract,      no averaging)
-   contracts                             never KILL)    Support,          │
-   deal notes                                           Revenue)          ▼
-   dependencies                             │              │          reflection
-                                            └── LLM interprets ──┘     (1 pass max)
-                                                the numbers               │
-                                                                          ▼
-                                        memo composer ──► citation validator ──► human gate
-                                        (structured,       (every claim          (interrupt +
-                                         required dissent)   resolves to a row)    checkpoint/resume)
+```mermaid
+flowchart TD
+    E["Evidence in Postgres<br/>telemetry · tickets · contracts · deal notes · dependencies"] --> M["metrics.py<br/>pure-Python signals"]
+    M --> PF{"Pre-filter<br/>human actors only"}
+    PF -->|obvious keep| K["KEEP — no model spend"]
+    PF -->|candidate| AU["Four auditors run in parallel"]
+
+    subgraph AUD ["LLM interprets the numbers · owns one trap each"]
+        U["Usage<br/>traps 3 · 5 · 6"]
+        C["Contract<br/>trap 1 · veto power"]
+        S["Support<br/>trap 4"]
+        R["Revenue<br/>trap 7"]
+    end
+    AU --> U & C & S & R
+
+    U & C & S & R --> REC["Reconciler<br/>deterministic precedence · does not average<br/>KILL unreachable under contract / concentration"]
+    REC -->|auditors disagree| RF["Reflection<br/>one bounded pass"]
+    RF --> REC
+    REC --> CO["Memo composer<br/>structured · required dissent"]
+    CO --> V["Citation validator<br/>every claim resolves to a row"]
+    V -->|clean| HG{"Human gate<br/>interrupt + checkpoint/resume"}
+    V -->|unciteable| CO
+    HG -->|approve| FM["Final memo"]
+    HG -->|override + reason| REC
 ```
 
 **The design principle throughout:** the LLM gathers and interprets evidence; a
@@ -130,6 +144,78 @@ is paid to draw. Concretely:
   argues its own side is how you get a confident, wrong, expensive removal.
 - **LangGraph earns its place on one thing:** checkpoint-and-resume across the human
   gate. Without human-in-the-loop, plain async Python would do — and the code says so.
+
+---
+
+## Architecture
+
+Three tiers, one database. The frontend is a decision-support UI, not a dashboard;
+the backend is a deterministic policy layer wrapped around an LLM interpretation
+layer; the store is a single Postgres with `pgvector` — no second datastore.
+
+```mermaid
+flowchart LR
+    subgraph FE ["Frontend · Next.js 16 + Tailwind v4"]
+        UI["Light 'cold daylight' + graphite dark<br/>Catalogue · Memo · Scorecard · Exposure<br/>scroll-driven sunset · pinned dissent"]
+    end
+    subgraph BE ["Backend · FastAPI + LangGraph"]
+        API["12 REST endpoints<br/>runs · audits · memo · override · scorecard"]
+        GRAPH["LangGraph pipeline<br/>PostgresSaver checkpoint / resume"]
+        PROV{"Provider abstraction<br/>request-hash canonicalized"}
+        OFF["offline stub<br/>keyless default"]
+        GEM["Gemini Flash<br/>live"]
+        REP["replay cassettes<br/>CI"]
+    end
+    DB[("Postgres 16 + pgvector<br/>evidence · embeddings · audits<br/>role-isolated ground truth")]
+
+    UI -->|"REST · NEXT_PUBLIC_API_BASE"| API
+    API --> GRAPH
+    GRAPH --> PROV
+    PROV --> OFF & GEM & REP
+    API --> DB
+    GRAPH --> DB
+    PROV -. retrieval .-> DB
+```
+
+| Tier | Framework | Why |
+|---|---|---|
+| **Frontend** | Next.js 16 · React 19 · Tailwind v4 · next-themes · Framer-Motion-style scroll | Editorial, evidence-first UI; self-hosted Newsreader / Inter / IBM Plex Mono via `next/font` |
+| **Orchestration** | LangGraph | Earns its place on checkpoint-and-resume across the human gate — nothing else |
+| **API** | FastAPI + SQLAlchemy 2.0 | Twelve endpoints; long runs via BackgroundTasks (no Celery, no Redis) |
+| **Store** | Postgres 16 + pgvector | One database; ground-truth isolation enforced by a REVOKE'd role |
+| **Embeddings** | hashing (keyless default) · Gemini `gemini-embedding-001` (live) | huggingface.co is egress-blocked, so `bge-small` can't download here |
+| **LLM** | Gemini Flash · offline stub · replay cassettes | Runs keyless by default; a real key lifts the offline headline suppression |
+| **Eval** | plain Python + pytest | A paid eval platform here would be theatre |
+
+---
+
+## The interface
+
+A case file, not a dashboard. Light "cold daylight" is the primary theme; a graphite
+dark mode is one toggle away. Amber appears **only** on real business risk — revenue
+exposure, at-risk accounts, contract and escalate rows — so when it shows up, it means
+something.
+
+<p align="center">
+  <img src="docs/screenshots/landing-light.png" alt="Landing — light" width="820"><br/>
+  <em>Landing — editorial, evidence-first.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/memo-sunset-light.png" alt="Decision memo with the sunset scroll" width="820"><br/>
+  <em>The signature: on a decision memo the page opens cool and a warm sunset light swells
+  behind the recommendation — lighting, not paint — while the dissent stays pinned and
+  never collapses.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/memo-sunset-dark.png" alt="Decision memo — dark" width="410">
+  <img src="docs/screenshots/scorecard-light.png" alt="Scorecard" width="410"><br/>
+  <em>Graphite dark mode · the live evaluation scorecard (baseline vs. agent, per trap).</em>
+</p>
+
+The frontend lives in [`frontend/`](frontend/). It renders standalone on typed mock data,
+or against the live API when `NEXT_PUBLIC_API_BASE` is set. `cd frontend && npm install && npm run dev`.
 
 ---
 
@@ -264,6 +350,8 @@ documents, aggregate telemetry, one-pass reflection cap, and the
 ## Repository map
 
 ```
+frontend/      Next.js 16 UI — light/dark, the sunset memo, four screens
+docs/          logo + interface screenshots
 db/            schema.sql (14 tables), roles.sql (ground-truth isolation), fixtures/
 datagen/       truth-sheet loader, trap encoders, deterministic generator, leak+signal lint
 eval/          truth/ground_truth.csv, frozen baseline, scoring harness, blind holdout
