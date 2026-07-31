@@ -1,0 +1,50 @@
+# Render Blueprint — deploys Sunset as three services in one click:
+#   sunset-db        managed Postgres (pgvector enabled by the backend entrypoint)
+#   sunset-backend   FastAPI + the LangGraph pipeline (root Dockerfile)
+#   sunset-frontend  Next.js UI (frontend/Dockerfile), reads the backend URL
+#
+# New → Blueprint → point at this repo. Everything below is wired automatically;
+# the only manual follow-up is optionally tightening CORS (see DEPLOY.md).
+databases:
+  - name: sunset-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # ---- backend -----------------------------------------------------------
+  - type: web
+    name: sunset-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sunset-db
+          property: connectionString
+      - key: SUNSET_LLM_MODE
+        value: offline
+      - key: SUNSET_EMBEDDING_MODEL
+        value: hashing-v1
+      # Tighten to the frontend origin once it has a URL (see DEPLOY.md).
+      - key: SUNSET_CORS_ORIGINS
+        value: "*"
+
+  # ---- frontend ----------------------------------------------------------
+  - type: web
+    name: sunset-frontend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    envVars:
+      # Baked into the client bundle at build time. `host` is scheme-less; the
+      # frontend defaults it to https://. Points at the backend service above.
+      - key: NEXT_PUBLIC_API_BASE
+        fromService:
+          type: web
+          name: sunset-backend
+          property: host
