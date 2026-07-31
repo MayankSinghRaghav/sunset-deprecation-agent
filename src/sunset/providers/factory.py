@@ -50,9 +50,12 @@ def get_llm() -> LLMProvider:
 
 @lru_cache
 def get_embedder() -> EmbeddingProvider:
-    # In offline/replay we use the keyless hashing embedder (or committed vectors,
-    # which are loaded into the DB at seed time, not re-embedded here). Only live
-    # mode constructs the Gemini embedder.
+    # The embedder is decoupled from llm_mode: it follows settings.embedding_model,
+    # so a live Gemini run can still use keyless hashing retrieval (the hybrid
+    # path) that matches a hashing-seeded corpus. Retrieval filters on
+    # embedding_model, so this must agree with what's in the DB.
+    if settings.embedding_model == "hashing-v1":
+        return HashingEmbeddingProvider()
     if settings.llm_mode == "live" and settings.gemini_api_key:
         return GeminiEmbeddingProvider()
     return HashingEmbeddingProvider()
