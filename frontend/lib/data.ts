@@ -292,16 +292,18 @@ export const MEMOS: Record<string, Memo> = {
 
 export const MEMO = MEMOS.f23;
 
-export const TRAPS: { name: string; slug: string; base: number; agent: number }[] = [
-  { name: "Obvious kill", slug: "none_kill", base: 7, agent: 6 },
-  { name: "Obvious keep", slug: "none_keep", base: 4, agent: 5 },
-  { name: "Contract-bound", slug: "trap 1", base: 1, agent: 4 },
-  { name: "Hidden dependency", slug: "trap 2", base: 0, agent: 4 },
-  { name: "Segment-concentrated", slug: "trap 3", base: 0, agent: 4 },
-  { name: "Broken, not unwanted", slug: "trap 4", base: 0, agent: 4 },
-  { name: "Seasonal", slug: "trap 5", base: 1, agent: 4 },
-  { name: "Phantom usage", slug: "trap 6", base: 0, agent: 4 },
-  { name: "Sales-critical", slug: "trap 7", base: 0, agent: 3 },
+// `key` matches the backend scorecard's per_trap keys so the page can bind real
+// per-trap scores; `slug` is the display label; base/agent are mock fallbacks.
+export const TRAPS: { name: string; key: string; slug: string; base: number; agent: number }[] = [
+  { name: "Obvious kill", key: "none_kill", slug: "none_kill", base: 7, agent: 6 },
+  { name: "Obvious keep", key: "none_keep", slug: "none_keep", base: 4, agent: 5 },
+  { name: "Contract-bound", key: "contract_bound", slug: "trap 1", base: 1, agent: 4 },
+  { name: "Hidden dependency", key: "hidden_dependency", slug: "trap 2", base: 0, agent: 4 },
+  { name: "Segment-concentrated", key: "segment_concentrated", slug: "trap 3", base: 0, agent: 4 },
+  { name: "Broken, not unwanted", key: "broken_not_unwanted", slug: "trap 4", base: 0, agent: 4 },
+  { name: "Seasonal", key: "seasonal", slug: "trap 5", base: 1, agent: 4 },
+  { name: "Phantom usage", key: "phantom_usage", slug: "trap 6", base: 0, agent: 4 },
+  { name: "Sales-critical", key: "sales_critical", slug: "trap 7", base: 0, agent: 3 },
 ];
 
 export interface AccountExposure {
@@ -364,14 +366,64 @@ export function money(n: number): string {
   return n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${n}`;
 }
 
-// --- optional live client -------------------------------------------------
+// --- live backend client ---------------------------------------------------
+// When NEXT_PUBLIC_API_BASE is set the UI reads real audit data from the
+// FastAPI backend; every call falls back to the committed mock on error, so the
+// design is always viewable without a running backend.
 const API = process.env.NEXT_PUBLIC_API_BASE;
-export async function fetchScorecard() {
+export const HAS_API = Boolean(API);
+
+// A memo as served by GET /features/{id}/memo-view — the frontend Memo plus the
+// audit id the override endpoint needs.
+export type MemoView = Memo & { audit_id: string };
+
+async function getJSON<T>(path: string): Promise<T | null> {
   if (!API) return null;
   try {
-    const r = await fetch(`${API}/eval/scorecard`, { cache: "no-store" });
+    const r = await fetch(`${API}${path}`, { cache: "no-store" });
     if (!r.ok) return null;
-    return await r.json();
+    return (await r.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchScorecard() {
+  return getJSON<Record<string, unknown>>("/eval/scorecard");
+}
+
+export async function fetchCatalogue(): Promise<FeatureRow[] | null> {
+  return getJSON<FeatureRow[]>("/catalogue");
+}
+
+export async function fetchMemoView(featureId: string): Promise<MemoView | null> {
+  return getJSON<MemoView>(`/features/${featureId}/memo-view`);
+}
+
+export interface OverrideResult {
+  audit_id: string;
+  original_verdict: Verdict;
+  new_verdict: Verdict;
+  resumed_from_checkpoint: boolean;
+}
+
+// POST a human decision override. The backend records it and resumes the graph
+// through finalize (checkpoint/resume), returning the persisted verdict.
+export async function postOverride(
+  auditId: string,
+  newVerdict: Verdict,
+  reason: string,
+  kind: "decision" | "fact" = "decision",
+): Promise<OverrideResult | null> {
+  if (!API) return null;
+  try {
+    const r = await fetch(`${API}/audits/${auditId}/override`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_verdict: newVerdict, reason, kind }),
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as OverrideResult;
   } catch {
     return null;
   }

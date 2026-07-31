@@ -1,26 +1,36 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { TRAPS } from "@/lib/data";
+import { TRAPS, HAS_API, fetchScorecard } from "@/lib/data";
 import { Card } from "@/components/ui";
 import { useAppStore } from "@/lib/store";
 import { Play, Terminal, ShieldCheck, CheckCircle2, ChevronRight, AlertTriangle, AlertCircle } from "lucide-react";
 
 const WRAP = "mx-auto max-w-[1180px] px-8";
 
+interface TrapScore { [k: string]: [number, number]; }
+interface ScoreArm { accuracy: number | null; correct: number; n: number; used_offline_stub: boolean; catastrophic_kills: string[]; per_trap: TrapScore; }
+interface ScoreData { baseline: ScoreArm; agent?: ScoreArm; }
+
 export default function Scorecard() {
-  const { 
-    isAuditing, 
-    auditProgress, 
-    hasRunAudit, 
-    triggerAudit, 
-    logs, 
-    activeRun, 
-    runs 
+  const {
+    isAuditing,
+    auditProgress,
+    hasRunAudit,
+    triggerAudit,
+    logs,
+    activeRun,
+    runs
   } = useAppStore();
 
   const [showConsole, setShowConsole] = useState(true);
+  const [score, setScore] = useState<ScoreData | null>(null);
   const consoleEndRef = useRef<HTMLDivElement>(null);
+
+  // Pull the real scorecard from the backend when configured.
+  useEffect(() => {
+    if (HAS_API) fetchScorecard().then((d) => d && setScore(d as unknown as ScoreData));
+  }, []);
 
   // Auto scroll console to bottom on new logs
   useEffect(() => {
@@ -29,9 +39,33 @@ export default function Scorecard() {
     }
   }, [logs]);
 
-  // Determine active accuracy value
-  const agentAccuracy = hasRunAudit ? "94.5%" : "—";
-  const agentCorrectCount = hasRunAudit ? "38 of 40 features" : "headline suppressed · offline stub run";
+  // Baseline is a real, un-suppressed number. The agent headline is suppressed
+  // whenever the run used the offline stub (the backend's own integrity guard) —
+  // so a real offline deployment never shows a fabricated accuracy figure.
+  const base = score?.baseline;
+  const agent = score?.agent;
+  const baselinePct = base?.accuracy != null ? `${(base.accuracy * 100).toFixed(1)}%` : "32.5%";
+  const baselineCorrect = base ? `${base.correct} of ${base.n} features` : "13 of 40 features";
+  const baselineCatastrophic = base ? base.catastrophic_kills.length : 2;
+
+  // The agent headline is revealed only when the backend actually returns a
+  // non-null accuracy — i.e. a live (keyed) run. An offline-stub run keeps it
+  // suppressed, which is the honest state. Without any backend, the mock
+  // simulation may reveal its own illustrative figure after a run.
+  let agentRevealed = false;
+  let agentAccuracy = "—";
+  let agentCorrectCount = "headline suppressed · offline stub run";
+  if (agent) {
+    if (agent.accuracy != null) {
+      agentRevealed = true;
+      agentAccuracy = `${(agent.accuracy * 100).toFixed(1)}%`;
+      agentCorrectCount = `${agent.correct} of ${agent.n} features`;
+    }
+  } else if (!HAS_API && hasRunAudit) {
+    agentRevealed = true;
+    agentAccuracy = "94.5%";
+    agentCorrectCount = "38 of 40 features · simulated";
+  }
 
   return (
     <div className={`${WRAP} pb-20`}>
@@ -50,16 +84,16 @@ export default function Scorecard() {
       <div className="mb-6 mt-2 grid grid-cols-1 gap-5 md:grid-cols-2">
         <Card className="p-6">
           <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">Deterministic baseline</div>
-          <div className="my-3 font-display text-[52px] leading-none tracking-[-0.02em] font-normal">32.5%</div>
-          <div className="text-[13px] text-muted">13 of 40 features · usage percentiles + keyword grep</div>
+          <div className="my-3 font-display text-[52px] leading-none tracking-[-0.02em] font-normal">{baselinePct}</div>
+          <div className="text-[13px] text-muted">{baselineCorrect} · usage percentiles + keyword grep</div>
           <div className="mt-4 font-mono text-[12.5px] text-amber flex items-center gap-1.5 font-medium">
-            <AlertTriangle size={13} /> ▲ 2 catastrophic contract breaches
+            <AlertTriangle size={13} /> ▲ {baselineCatastrophic} catastrophic contract breach{baselineCatastrophic === 1 ? "" : "es"}
           </div>
         </Card>
         
-        <Card className={`p-6 transition-all duration-300 ${hasRunAudit ? "border-teal/30 shadow-[0_0_20px_rgba(78,156,147,0.03)]" : "border-border"}`}>
+        <Card className={`p-6 transition-all duration-300 ${agentRevealed ? "border-teal/30 shadow-[0_0_20px_rgba(78,156,147,0.03)]" : "border-border"}`}>
           <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">Agent pipeline</div>
-          <div className={`my-3 font-display text-[52px] leading-none tracking-[-0.02em] font-normal transition-colors ${hasRunAudit ? "text-teal" : "text-faint"}`}>
+          <div className={`my-3 font-display text-[52px] leading-none tracking-[-0.02em] font-normal transition-colors ${agentRevealed ? "text-teal" : "text-faint"}`}>
             {agentAccuracy}
           </div>
           <div className="text-[13px] text-muted">{agentCorrectCount}</div>
@@ -194,16 +228,19 @@ export default function Scorecard() {
       </div>
       <Card className="px-6 py-3">
         {TRAPS.map((t) => {
-          // Adjust display metric dynamically
-          const displayAgentScore = hasRunAudit ? t.agent : 0;
+          const bp = base?.per_trap?.[t.key];
+          const ap = agent?.per_trap?.[t.key];
+          const total = bp?.[1] ?? 4;
+          const baseScore = bp?.[0] ?? t.base;
+          const agentScore = ap ? ap[0] : (agentRevealed ? t.agent : 0);
           return (
             <div key={t.slug} className="grid grid-cols-[140px_1fr_1fr] items-center gap-4 border-b py-3 last:border-0 md:grid-cols-[180px_1fr_1fr]">
               <div className="text-[13.5px] font-medium text-text">
                 {t.name}
                 <span className="block font-mono text-[10.5px] text-faint font-normal">{t.slug}</span>
               </div>
-              <Bar value={t.base} cls="bg-faint" />
-              <Bar value={displayAgentScore} cls="bg-teal transition-all duration-700" />
+              <Bar value={baseScore} total={total} cls="bg-faint" />
+              <Bar value={agentScore} total={total} cls="bg-teal transition-all duration-700" />
             </div>
           );
         })}
@@ -233,13 +270,14 @@ export default function Scorecard() {
   );
 }
 
-function Bar({ value, cls }: { value: number; cls: string }) {
+function Bar({ value, total = 4, cls }: { value: number; total?: number; cls: string }) {
+  const pct = total > 0 ? Math.min(100, (value / total) * 100) : 0;
   return (
     <div className="flex items-center gap-3">
       <div className="h-[9px] flex-1 overflow-hidden rounded-full bg-surface-2">
-        <div className={`h-full rounded-full ${cls}`} style={{ width: `${(value / 4) * 100}%` }} />
+        <div className={`h-full rounded-full ${cls}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-8 text-right font-mono text-xs text-muted">{value}/4</span>
+      <span className="w-8 text-right font-mono text-xs text-muted">{value}/{total}</span>
     </div>
   );
 }

@@ -144,6 +144,10 @@ CREATE TABLE IF NOT EXISTS feature_audits (
     -- the composer must say so explicitly rather than omit the field.
     dissent     text,
     memo_markdown text,
+    -- The composer's structured Memo (summary, claims, at_risk_accounts,
+    -- migration_plan, dissent), persisted so the API can serve a structured
+    -- memo view without re-parsing the rendered markdown.
+    memo_json   jsonb NOT NULL DEFAULT '{}'::jsonb,
     applied_rules jsonb NOT NULL DEFAULT '[]'::jsonb,
     disagreements jsonb NOT NULL DEFAULT '[]'::jsonb,
     reflection_passes integer NOT NULL DEFAULT 0 CHECK (reflection_passes <= 1),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from sunset.api.routes import router
 from sunset.config import settings
@@ -14,6 +15,14 @@ def create_app() -> FastAPI:
         description="Assembles the case for deprecating a software feature. "
                     "A human signs the death warrant.",
         version="0.1.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @app.get("/")

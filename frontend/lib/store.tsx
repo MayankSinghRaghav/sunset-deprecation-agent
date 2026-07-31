@@ -1,6 +1,9 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { CATALOGUE, MEMO, EXPOSURE, SCORECARD, TRAPS, type FeatureRow, type Memo, type Verdict } from "./data";
+import {
+  CATALOGUE, type FeatureRow, type Verdict,
+  HAS_API, fetchCatalogue, fetchMemoView, postOverride,
+} from "./data";
 
 export interface AuditRun {
   id: string;
@@ -125,21 +128,33 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [auditProgress, setAuditProgress] = useState<number>(0);
   const [hasRunAudit, setHasRunAudit] = useState<boolean>(false);
 
-  // Initialize with empty run or load past runs
+  // Initialize: pull the real catalogue from the backend when configured
+  // (falling back to mock), then overlay any saved local overrides and runs.
   useEffect(() => {
+    const savedOverrides = localStorage.getItem("sunset_overrides");
+    const parsedOverrides: Record<string, Override> = savedOverrides ? JSON.parse(savedOverrides) : {};
+    if (savedOverrides) setOverrides(parsedOverrides);
+
+    const applyOverrides = (rows: FeatureRow[]) =>
+      rows.map(f => (parsedOverrides[f.id] ? { ...f, verdict: parsedOverrides[f.id].newVerdict } : f));
+
+    if (HAS_API) {
+      fetchCatalogue().then(rows => {
+        if (rows && rows.length) {
+          setFeatures(applyOverrides(rows));
+          setHasRunAudit(true);
+        } else {
+          setFeatures(prev => applyOverrides(prev));
+        }
+      });
+    } else {
+      setFeatures(prev => applyOverrides(prev));
+    }
+
     const saved = localStorage.getItem("sunset_runs");
     if (saved) {
       setRuns(JSON.parse(saved));
       setHasRunAudit(true);
-    }
-    const savedOverrides = localStorage.getItem("sunset_overrides");
-    if (savedOverrides) {
-      const parsed = JSON.parse(savedOverrides);
-      setOverrides(parsed);
-      // Update catalogue features with saved overrides
-      setFeatures(prev =>
-        prev.map(f => (parsed[f.id] ? { ...f, verdict: parsed[f.id].newVerdict } : f))
-      );
     }
   }, []);
 
@@ -217,22 +232,35 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     setHasRunAudit(true);
   };
 
-  const addOverride = (featureId: string, newVerdict: Verdict, reason: string) => {
+  const applyOverrideLocally = (featureId: string, newVerdict: Verdict, reason: string) => {
     const overrideObj: Override = {
       featureId,
       newVerdict,
       reason,
-      timestamp: new Date().toLocaleDateString()
+      timestamp: new Date().toLocaleDateString(),
     };
-    
     const newOverrides = { ...overrides, [featureId]: overrideObj };
     setOverrides(newOverrides);
     localStorage.setItem("sunset_overrides", JSON.stringify(newOverrides));
-
-    // Update feature row verdict
     setFeatures(prev =>
       prev.map(f => (f.id === featureId ? { ...f, verdict: newVerdict, reclassify: newVerdict === "KEEP" && f.reclassify } : f))
     );
+  };
+
+  // A human decision override. Against a live backend it persists through the
+  // graph (checkpoint/resume) and reflects the verdict the backend returns;
+  // otherwise it updates local state only. Local state updates optimistically
+  // either way so the UI responds immediately.
+  const addOverride = async (featureId: string, newVerdict: Verdict, reason: string) => {
+    applyOverrideLocally(featureId, newVerdict, reason);
+    if (!HAS_API) return;
+    const memo = await fetchMemoView(featureId);
+    if (!memo?.audit_id) return;
+    const res = await postOverride(memo.audit_id, newVerdict, reason, "decision");
+    if (res && res.new_verdict !== newVerdict) {
+      // backend reconciled to a different verdict — reflect the source of truth
+      applyOverrideLocally(featureId, res.new_verdict as Verdict, reason);
+    }
   };
 
   return (

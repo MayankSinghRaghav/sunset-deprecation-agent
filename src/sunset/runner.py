@@ -150,11 +150,12 @@ def _persist_feature(conn, run_id, res: FeatureResult):
         cur.execute(
             "INSERT INTO feature_audits (id, run_id, feature_id, status, verdict, "
             "secondary_action, confidence, prefilter_verdict, dissent, memo_markdown, "
-            "applied_rules, reflection_passes, thread_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "memo_json, applied_rules, reflection_passes, thread_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (audit_id, run_id, res.feature_id, res.status, res.verdict,
              res.secondary_action, res.confidence, pf,
              res.memo.dissent if res.memo else None, res.memo_markdown,
+             json.dumps(res.memo.model_dump(mode="json")) if res.memo else "{}",
              json.dumps(res.applied_rules), res.reflection_passes,
              f"{run_id}:{res.feature_id}"),
         )

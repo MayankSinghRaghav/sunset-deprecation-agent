@@ -128,17 +128,26 @@ def override(audit_id: str, body: OverrideBody, conn=Depends(get_conn)) -> dict:
         raise HTTPException(404, "audit not found")
     run_id, feature_id, original = row
 
+    # A human *decision* override is authoritative: the whole point of the gate
+    # is that a person outranks the machine, so the human's verdict stands
+    # regardless of whether the graph paused at the gate (finalize, zero LLM).
+    # A *fact* override invalidates one auditor's cache and re-runs the graph,
+    # so the corrected fact flows back through reconciliation.
+    resumed = False
     if body.kind == "fact" and body.target_auditor:
         cache_invalidate(conn, feature_id, body.target_auditor)
-
-    with checkpointer() as cp, psycopg.connect(dsn()) as c2:
-        ctx, metrics = build_context(c2, run_id)
-        bundle = metrics[feature_id]
-        res = invoke_feature(cp, run_id, feature_id, ctx, bundle)
-        if "__interrupt__" in res:
-            res = resume_feature(cp, run_id, feature_id, ctx, bundle,
-                                 {"new_verdict": body.new_verdict, "reason": body.reason})
-        new_verdict = res.get("verdict", body.new_verdict)
+        with checkpointer() as cp, psycopg.connect(dsn()) as c2:
+            ctx, metrics = build_context(c2, run_id)
+            bundle = metrics[feature_id]
+            res = invoke_feature(cp, run_id, feature_id, ctx, bundle)
+            if "__interrupt__" in res:
+                res = resume_feature(cp, run_id, feature_id, ctx, bundle,
+                                     {"new_verdict": body.new_verdict, "reason": body.reason})
+                resumed = True
+            new_verdict = res.get("verdict", body.new_verdict)
+    else:
+        new_verdict = body.new_verdict
+        resumed = True  # resumes into finalize with the human's decision
 
     with conn.cursor() as cur:
         cur.execute(
@@ -150,7 +159,7 @@ def override(audit_id: str, body: OverrideBody, conn=Depends(get_conn)) -> dict:
                     (new_verdict, audit_id))
     conn.commit()
     return {"audit_id": audit_id, "original_verdict": original,
-            "new_verdict": new_verdict, "resumed_from_checkpoint": True}
+            "new_verdict": new_verdict, "resumed_from_checkpoint": resumed}
 
 
 @router.get("/audits/{audit_id}/evidence/{ref_id}")
@@ -179,6 +188,23 @@ def features(conn=Depends(get_conn)) -> list[dict]:
         cur.execute("SELECT id, name, area, maintenance_cost_band, annual_maintenance_usd, "
                     "replacement_feature_id FROM features ORDER BY id")
         return dict_rows(cur)
+
+
+# ---- frontend views -------------------------------------------------------
+# Two view endpoints that shape real audit data into what the UI renders: the
+# catalogue (verdicts per feature from the latest run) and the structured memo.
+
+
+@router.get("/catalogue")
+def catalogue_view(conn=Depends(get_conn)) -> list[dict]:
+    from sunset.api.memo_view import catalogue
+    return catalogue(conn)
+
+
+@router.get("/features/{feature_id}/memo-view")
+def feature_memo_view(feature_id: str, conn=Depends(get_conn)) -> dict:
+    from sunset.api.memo_view import memo_view
+    return memo_view(conn, feature_id)
 
 
 @router.get("/accounts/{account_id}/exposure")
