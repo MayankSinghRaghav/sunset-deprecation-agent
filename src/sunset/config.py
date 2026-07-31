@@ -50,18 +50,43 @@ class Settings(BaseSettings):
     token_budget: int = 150_000
     max_concurrency: int = 4
 
+    # --- api --------------------------------------------------------------
+    # Comma-separated allowed origins for CORS (the deployed frontend URL).
+    # "*" is fine for a public read-mostly demo; set the real origin in prod.
+    cors_origins: str = "*"
+
     # --- misc -------------------------------------------------------------
     dataset_seed: int = 1337
     dataset_version: str = "v1"
 
     def __init__(self, **kw):  # noqa: D401
         super().__init__(**kw)
+        import os
+
         # GEMINI_API_KEY is conventionally un-prefixed; pull it in if the
         # prefixed form wasn't set.
         if not self.gemini_api_key:
-            import os
-
             self.gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+
+        # Managed hosts (Railway, Render, Heroku) inject an un-prefixed
+        # DATABASE_URL with a `postgresql://` (or legacy `postgres://`) scheme.
+        # Honour it when SUNSET_DATABASE_URL wasn't explicitly set, normalising
+        # the scheme to the psycopg3 driver SQLAlchemy uses here.
+        if "SUNSET_DATABASE_URL" not in os.environ:
+            managed = os.environ.get("DATABASE_URL", "")
+            if managed:
+                self.database_url = self._normalise_dsn(managed)
+
+    @staticmethod
+    def _normalise_dsn(url: str) -> str:
+        for prefix in ("postgresql+psycopg://", "postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
+        return url
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache

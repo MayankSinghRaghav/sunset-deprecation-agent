@@ -1,8 +1,8 @@
 "use client";
-import React, { use, useState } from "react";
+import React, { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppStore } from "@/lib/store";
-import { MEMOS, money, VERDICT_STYLE, type Verdict } from "@/lib/data";
+import { MEMOS, money, VERDICT_STYLE, HAS_API, fetchMemoView, type Verdict, type Memo } from "@/lib/data";
 import { VerdictBadge } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import { Database, AlertTriangle, ShieldCheck, Edit3, X, HelpCircle } from "lucide-react";
@@ -14,8 +14,22 @@ export default function MemoPage({ params }: { params: Promise<{ id: string }> }
   const id = resolvedParams.id;
   const { features, overrides, addOverride } = useAppStore();
 
-  // Find memo data
-  const m = MEMOS[id] || MEMOS["f23"];
+  // Memo data: the real structured memo from the backend when configured,
+  // falling back to the committed mock so the page always renders.
+  const [m, setM] = useState<Memo>(MEMOS[id] || MEMOS["f23"]);
+  useEffect(() => {
+    let live = true;
+    if (HAS_API) {
+      fetchMemoView(id).then((v) => {
+        if (live && v) setM(v);
+      });
+    } else {
+      setM(MEMOS[id] || MEMOS["f23"]);
+    }
+    return () => {
+      live = false;
+    };
+  }, [id]);
 
   // Local feature row from store (to reflect live override status)
   const localFeature = features.find((f) => f.id === id) || {

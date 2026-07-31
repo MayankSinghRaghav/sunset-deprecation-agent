@@ -287,6 +287,22 @@ hard error, never a silent live call), so CI stays deterministic and free.
 
 ---
 
+## Deploy (backend + frontend)
+
+The frontend reads real audit data from the backend API (catalogue, structured
+memos, human overrides, scorecard); it falls back to committed mock data when
+`NEXT_PUBLIC_API_BASE` is unset, so the design is always viewable standalone.
+
+Both halves are container-ready — a root `Dockerfile` for the FastAPI backend
+(with an idempotent entrypoint that applies the schema, seeds fixtures, runs the
+offline pipeline, then serves) and a `frontend/Dockerfile` for the Next.js app.
+A three-service Railway deployment (Postgres + backend + frontend) is documented
+step by step in **[DEPLOY.md](DEPLOY.md)**. The hosted backend runs the real
+pipeline in offline mode with no API key; the scorecard keeps its accuracy
+headline suppressed until a live model run is configured.
+
+---
+
 ## Stack
 
 LangGraph (checkpoint/resume) · FastAPI + SQLAlchemy 2.0 · Postgres + pgvector ·

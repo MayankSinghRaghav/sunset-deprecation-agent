@@ -1,5 +1,8 @@
-"""The API surface is a contract: exactly twelve endpoints, no thirteenth (spec §7
-says 'roughly a dozen, no more'). Plus smoke tests against the seeded DB."""
+"""The API surface is a contract. The spec's twelve core endpoints (§7) plus two
+frontend view endpoints — /catalogue and /features/{id}/memo-view — that shape
+the same real audit data into what the UI renders. The set is still pinned: a
+stray endpoint beyond this set fails the test. Plus smoke tests against the
+seeded DB."""
 
 from __future__ import annotations
 
@@ -26,6 +29,9 @@ EXPECTED_ROUTES = {
     ("GET", "/features"),
     ("GET", "/accounts/{account_id}/exposure"),
     ("GET", "/eval/scorecard"),
+    # frontend view endpoints (real audit data, UI-shaped)
+    ("GET", "/catalogue"),
+    ("GET", "/features/{feature_id}/memo-view"),
 }
 
 
@@ -33,7 +39,7 @@ def _dsn():
     return settings.database_url.replace("postgresql+psycopg://", "postgresql://")
 
 
-def test_exactly_twelve_endpoints():
+def test_endpoint_set_is_pinned():
     spec = app.openapi()
     routes = {(m.upper(), path) for path, methods in spec["paths"].items() for m in methods}
     assert routes == EXPECTED_ROUTES, (
