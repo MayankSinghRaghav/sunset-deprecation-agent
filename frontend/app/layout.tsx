@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteNav } from "@/components/site-nav";
 import { SunsetGlow } from "@/components/sunset-glow";
+import { AppStoreProvider } from "@/lib/store";
 
 const newsreader = Newsreader({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-newsreader", display: "swap" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -19,10 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${newsreader.variable} ${inter.variable} ${plex.variable}`}>
       <body>
         <ThemeProvider>
-          <SunsetGlow />
-          <SiteNav />
-          <main className="relative z-[1]">{children}</main>
-          <SiteFooter />
+          <AppStoreProvider>
+            <SunsetGlow />
+            <SiteNav />
+            <main className="relative z-[1]">{children}</main>
+            <SiteFooter />
+          </AppStoreProvider>
         </ThemeProvider>
       </body>
     </html>
