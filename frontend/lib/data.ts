@@ -370,7 +370,14 @@ export function money(n: number): string {
 // When NEXT_PUBLIC_API_BASE is set the UI reads real audit data from the
 // FastAPI backend; every call falls back to the committed mock on error, so the
 // design is always viewable without a running backend.
-const API = process.env.NEXT_PUBLIC_API_BASE;
+// Render's `fromService` provides a bare host (no scheme); default it to https.
+function normalizeApiBase(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim().replace(/\/+$/, "");
+  if (!v) return undefined;
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_BASE);
 export const HAS_API = Boolean(API);
 
 // A memo as served by GET /features/{id}/memo-view — the frontend Memo plus the

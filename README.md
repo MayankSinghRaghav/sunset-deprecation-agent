@@ -296,10 +296,11 @@ memos, human overrides, scorecard); it falls back to committed mock data when
 Both halves are container-ready — a root `Dockerfile` for the FastAPI backend
 (with an idempotent entrypoint that applies the schema, seeds fixtures, runs the
 offline pipeline, then serves) and a `frontend/Dockerfile` for the Next.js app.
-A three-service Railway deployment (Postgres + backend + frontend) is documented
-step by step in **[DEPLOY.md](DEPLOY.md)**. The hosted backend runs the real
-pipeline in offline mode with no API key; the scorecard keeps its accuracy
-headline suppressed until a live model run is configured.
+A one-click **Render** Blueprint (`render.yaml`) brings up all three services
+(Postgres + backend + frontend); the step-by-step runbook — plus notes for
+Railway and other platforms — is in **[DEPLOY.md](DEPLOY.md)**. The hosted
+backend runs the real pipeline in offline mode with no API key; the scorecard
+keeps its accuracy headline suppressed until a live model run is configured.
 
 ---
 
