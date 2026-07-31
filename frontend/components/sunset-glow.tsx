@@ -1,34 +1,37 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
-// The signature: a fixed warm light that swells as the recommendation nears the
-// centre of the viewport, then fades — cold daylight at the top, sunset at the
-// decision, neutral again by the dissent. Respects prefers-reduced-motion.
-export function SunsetGlow({ targetId }: { targetId: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-
+// The signature. The whole interface travels from cold daylight at the top of a
+// page into a warm sunset at the bottom: as you scroll, the body background
+// interpolates cold → dusk and a sun rises from below the horizon. Warmth is
+// driven by overall scroll progress, so it works on every screen; when a memo's
+// #recommendation is on the page it gets an extra swell at the decision moment.
+// Mounted once, globally. Sets the --warm custom property; CSS does the painting.
+// Respects prefers-reduced-motion.
+export function SunsetGlow() {
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const root = document.documentElement;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
-      el.style.opacity = "0.22";
+      root.style.setProperty("--warm", "0.4");
       return;
     }
     let raf = 0;
     const update = () => {
       raf = 0;
-      const rec = document.getElementById(targetId);
-      if (!rec) {
-        el.style.opacity = "0";
-        return;
+      const max = root.scrollHeight - window.innerHeight;
+      let p = max > 4 ? window.scrollY / max : 0;
+      p = Math.min(1, Math.max(0, p));
+      let warmth = p * p * (3 - 2 * p); // smoothstep: crisp cold at the top
+
+      const rec = document.getElementById("recommendation");
+      if (rec) {
+        const r = rec.getBoundingClientRect();
+        const center = r.top + r.height / 2;
+        const near = Math.max(0, 1 - Math.abs(center - window.innerHeight * 0.5) / window.innerHeight);
+        warmth = Math.min(1, warmth + near * 0.35);
       }
-      const r = rec.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const center = r.top + r.height / 2;
-      const dist = Math.abs(center - vh * 0.52) / vh; // 0 when centred
-      const warmth = Math.max(0, 1 - dist * 1.3);
-      el.style.opacity = (warmth * 0.95).toFixed(3);
+      root.style.setProperty("--warm", warmth.toFixed(3));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
@@ -40,8 +43,9 @@ export function SunsetGlow({ targetId }: { targetId: string }) {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       if (raf) cancelAnimationFrame(raf);
+      root.style.removeProperty("--warm");
     };
-  }, [targetId]);
+  }, []);
 
-  return <div ref={ref} className="sun-glow" style={{ opacity: 0, transition: "opacity .45s ease" }} />;
+  return <div className="sun-glow" aria-hidden="true" />;
 }

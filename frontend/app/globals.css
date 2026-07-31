@@ -2,14 +2,15 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e4e8ed;
+  --warm:0; /* 0 = cold daylight (top of page) … 1 = warm sunset (bottom); driven by scroll */
+  --bg:#f6f7f9; --dusk:#f7e3c9; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e4e8ed;
   --text:#191c22; --muted:#647084; --faint:#98a0ad;
   --teal:#2c8579; --amber:#b8701f; --amber-soft:#d98a3b;
   --glow:217 138 59;
   --shadow:0 1px 2px rgba(20,25,40,.04), 0 8px 24px -12px rgba(20,25,40,.10);
 }
 .dark {
-  --bg:#16181d; --surface:#1e2128; --surface-2:#23262e; --border:#2a2f37;
+  --bg:#16181d; --dusk:#2c211b; --surface:#1e2128; --surface-2:#23262e; --border:#2a2f37;
   --text:#e4e7ec; --muted:#8a919e; --faint:#5c636e;
   --teal:#4e9c93; --amber:#d98a3b; --amber-soft:#e6a65e;
   --glow:217 138 59;
@@ -27,9 +28,11 @@
 * { border-color:var(--border); }
 html { scroll-behavior:smooth; }
 body {
-  background:var(--bg); color:var(--text); font-family:var(--font-body);
+  /* cold daylight at the top of the page interpolates into warm dusk as --warm rises */
+  background:color-mix(in srgb, var(--bg), var(--dusk) calc(var(--warm) * 100%));
+  color:var(--text); font-family:var(--font-body);
   font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
-  transition:background-color .5s ease, color .3s ease;
+  transition:background-color .18s linear, color .3s ease;
 }
 h1,h2,h3,h4 { font-family:var(--font-display); font-weight:420; line-height:1.14; letter-spacing:-.011em; text-wrap:balance; }
 .font-display { font-family:var(--font-display); }
@@ -37,8 +40,13 @@ h1,h2,h3,h4 { font-family:var(--font-display); font-weight:420; line-height:1.14
 .eyebrow { font-family:var(--font-mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
 ::selection { background:rgb(var(--glow) / .22); }
 :focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+/* the sun, setting below the bottom horizon — rises and warms as --warm approaches 1 */
 .sun-glow {
   position:fixed; inset:0; pointer-events:none; z-index:0; will-change:opacity;
-  background:radial-gradient(58% 66% at 76% 60%, rgb(var(--glow) / .20), rgb(var(--glow) / .06) 42%, transparent 68%);
+  opacity:calc(.12 + var(--warm) * .88); transition:opacity .18s linear;
+  background:
+    radial-gradient(140% 78% at 50% calc(128% - var(--warm) * 34%),
+      rgb(var(--glow) / .55), rgb(var(--glow) / .18) 34%, transparent 62%),
+    linear-gradient(180deg, transparent 46%, rgb(var(--glow) / .05) 78%, rgb(var(--glow) / .12) 100%);
 }
 @media (prefers-reduced-motion:reduce){ body{transition:none} html{scroll-behavior:auto} }

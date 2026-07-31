@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { MEMO, money, VERDICT_STYLE } from "@/lib/data";
 import { VerdictBadge } from "@/components/ui";
-import { SunsetGlow } from "@/components/sunset-glow";
 
 const WRAP = "mx-auto max-w-[1180px] px-8";
 
@@ -10,7 +9,6 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
   const m = MEMO;
   return (
     <>
-      <SunsetGlow targetId="recommendation" />
       <div className={WRAP}>
         {/* hero */}
         <div className="border-b pb-8 pt-13" style={{ paddingTop: "3.25rem" }}>
