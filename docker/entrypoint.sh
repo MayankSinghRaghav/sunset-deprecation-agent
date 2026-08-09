@@ -20,12 +20,42 @@ PSQL_DSN="${DATABASE_URL/postgresql+psycopg:/postgresql:}"
 PSQL_DSN="${PSQL_DSN/postgres:\/\//postgresql://}"
 PORT="${PORT:-8000}"
 
+# Print host/port/dbname only — NEVER the password — so a bad DATABASE_URL
+# (wrong host, an un-encoded special character in the password that silently
+# breaks URL parsing, a leftover [YOUR-PASSWORD] placeholder) is visible in
+# the logs instead of producing a mute, unexplained "not ready" loop.
+DSN_INFO="$(python3 - "$PSQL_DSN" <<'PY'
+import sys
+from urllib.parse import urlsplit
+u = urlsplit(sys.argv[1])
+print(f"{u.hostname or ''}\t{u.port or 5432}\t{u.path or ''}")
+PY
+)"
+DSN_HOST="$(printf '%s' "$DSN_INFO" | cut -f1)"
+DSN_PORT="$(printf '%s' "$DSN_INFO" | cut -f2)"
+DSN_PATH="$(printf '%s' "$DSN_INFO" | cut -f3)"
+echo "==> DATABASE_URL target: ${DSN_HOST:-<unparsed>}:${DSN_PORT}${DSN_PATH} (password redacted)"
+if [ -z "$DSN_HOST" ]; then
+  echo "   WARNING: could not parse a hostname — check DATABASE_URL for unencoded special characters (@ # % : etc.) in the password, or a leftover [YOUR-PASSWORD] placeholder."
+fi
+
 echo "==> waiting for Postgres"
 for i in $(seq 1 60); do
-  if pg_isready -d "$PSQL_DSN" >/dev/null 2>&1; then break; fi
-  echo "   ... not ready yet ($i)"; sleep 2
+  OUT="$(pg_isready -d "$PSQL_DSN" 2>&1)" && { echo "   $OUT"; break; }
+  if [ "$i" -eq 1 ] || [ $((i % 10)) -eq 0 ]; then
+    echo "   ... not ready ($i): $OUT"
+  else
+    echo "   ... not ready yet ($i)"
+  fi
+  sleep 2
 done
-pg_isready -d "$PSQL_DSN" >/dev/null 2>&1 || { echo "Postgres never became ready"; exit 1; }
+if ! pg_isready -d "$PSQL_DSN" >/dev/null 2>&1; then
+  echo "==> Postgres never became ready. Diagnostics:"
+  pg_isready -d "$PSQL_DSN" || true
+  echo "==> DNS resolution for ${DSN_HOST:-<unparsed>}:"
+  getent hosts "$DSN_HOST" 2>&1 || echo "   does not resolve from this container — if this is a Supabase 'Direct connection' host (db.<ref>.supabase.co), switch to the Session Pooler host (aws-0-<region>.pooler.supabase.com) instead, which is IPv4-reachable."
+  exit 1
+fi
 
 # Detect pgvector. The schema stores embeddings as vector(768) when the
 # extension is available and real[] otherwise, so the runtime vector backend
