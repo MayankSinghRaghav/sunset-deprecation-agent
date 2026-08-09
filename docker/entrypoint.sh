@@ -20,15 +20,27 @@ PSQL_DSN="${DATABASE_URL/postgresql+psycopg:/postgresql:}"
 PSQL_DSN="${PSQL_DSN/postgres:\/\//postgresql://}"
 PORT="${PORT:-8000}"
 
+# Strip a stray literal [host] bracket-wrapping around a plain DNS hostname — a
+# common copy/paste artifact. Postgres URIs only use [...] for a literal IPv6
+# address, which always contains a colon; a bracketed *hostname* (no colon
+# inside) makes both this parser and libpq itself try (and fail) to read it as
+# one, which previously crashed this script outright instead of connecting.
+PSQL_DSN="$(printf '%s' "$PSQL_DSN" | sed -E 's/@\[([^]:]+)\]:/@\1:/')"
+
 # Print host/port/dbname only — NEVER the password — so a bad DATABASE_URL
 # (wrong host, an un-encoded special character in the password that silently
 # breaks URL parsing, a leftover [YOUR-PASSWORD] placeholder) is visible in
-# the logs instead of producing a mute, unexplained "not ready" loop.
+# the logs instead of producing a mute, unexplained "not ready" loop. Never
+# raises: any parse failure is reported, not fatal.
 DSN_INFO="$(python3 - "$PSQL_DSN" <<'PY'
 import sys
 from urllib.parse import urlsplit
-u = urlsplit(sys.argv[1])
-print(f"{u.hostname or ''}\t{u.port or 5432}\t{u.path or ''}")
+try:
+    u = urlsplit(sys.argv[1])
+    host, port, path = u.hostname or "", u.port or 5432, u.path or ""
+except Exception as e:
+    host, port, path = "", "", f"(unparseable: {e})"
+print(f"{host}\t{port}\t{path}")
 PY
 )"
 DSN_HOST="$(printf '%s' "$DSN_INFO" | cut -f1)"
