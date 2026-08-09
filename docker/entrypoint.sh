@@ -31,15 +31,28 @@ PSQL_DSN="$(printf '%s' "$PSQL_DSN" | sed -E 's/@\[([^]:]+)\]:/@\1:/')"
 # (wrong host, an un-encoded special character in the password that silently
 # breaks URL parsing, a leftover [YOUR-PASSWORD] placeholder) is visible in
 # the logs instead of producing a mute, unexplained "not ready" loop. Never
-# raises: any parse failure is reported, not fatal.
+# raises: any parse failure is reported, not fatal. Retries its own
+# bracket-strip in case the bash-level sed above didn't fire (belt and
+# suspenders — this parser must never be the thing that goes silent).
 DSN_INFO="$(python3 - "$PSQL_DSN" <<'PY'
+import re
 import sys
 from urllib.parse import urlsplit
+
+
+def parse(raw: str):
+    u = urlsplit(raw)
+    return u.hostname or "", u.port or 5432, u.path or ""
+
+
+raw = sys.argv[1]
 try:
-    u = urlsplit(sys.argv[1])
-    host, port, path = u.hostname or "", u.port or 5432, u.path or ""
-except Exception as e:
-    host, port, path = "", "", f"(unparseable: {e})"
+    host, port, path = parse(raw)
+except Exception:
+    try:
+        host, port, path = parse(re.sub(r"@\[([^\]:]+)\]:", r"@\1:", raw))
+    except Exception as e:
+        host, port, path = "", "", f"(unparseable: {e})"
 print(f"{host}\t{port}\t{path}")
 PY
 )"
